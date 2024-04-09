@@ -1,0 +1,238 @@
+---
+title: "Stats 140 Trump"
+author: "Daphne Hidley"
+date: "2023-11-21"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+tweet <- read.csv("tweets_01-08-2021.csv")
+tweet <- tibble(tweet)
+```
+
+```{r most retweeted}
+tweet %>% 
+  arrange(desc(retweets))
+```
+
+```{r retweets}
+RT_index <- which(str_match(tweet$text, "^RT") == "RT")
+RTs <- tweet[RT_index,]
+
+http_index <- which(str_match(tweet$text, "^http") == "http")
+https <- tweet[http_index,]
+
+trump_tweets <- tweet[-c(RT_index, http_index),]
+
+flagged <- trump_tweets[which(trump_tweets$isFlagged == "t"),]
+```
+
+
+```{r}
+library(wordcloud)
+library(RColorBrewer)
+library(tidytext)
+
+
+trump_tweet_words <- twt %>%
+    unnest_tokens(word, text) %>%
+    anti_join(stop_words)
+
+count_word <- trump_tweet_words %>%
+   count(word, sort = TRUE)
+
+#still getting http from end of tweet, his twitter handle, hashtags (could do hashtag wordcloud)
+trump_tweet_words <- trump_tweet_words[-which(trump_tweet_words$word == "t.co"),]
+trump_tweet_words <- trump_tweet_words[-which(trump_tweet_words$word == "https"),]
+trump_tweet_words <- trump_tweet_words[-which(trump_tweet_words$word == "realdonaldtrump"),]
+trump_tweet_words <- trump_tweet_words[-which(trump_tweet_words$word == "amp"),]
+trump_tweet_words <- trump_tweet_words[-which(trump_tweet_words$word == "http"),]
+
+color_number <- 20
+color_palette <- colorRampPalette(brewer.pal(8, "Paired"))(color_number)
+
+wordcloud(words = trump_tweet_words$word, min.freq = 2,
+ scale = c(4, 0.5),
+          max.words=100, random.order=FALSE, rot.per=0.2, 
+          colors=color_palette)
+```
+
+
+
+```{r}
+flagged_words <- flagged %>%
+    unnest_tokens(word, text) %>%
+    anti_join(stop_words)
+
+count_flagged_word <- flagged_words %>%
+   count(word, sort = TRUE)
+
+flagged_words <- flagged_words[-which(flagged_words$word == "t.co"),]
+flagged_words <- flagged_words[-which(flagged_words$word == "https"),]
+flagged_words <- flagged_words[-which(flagged_words$word == "amp"),]
+
+wordcloud(words = flagged_words$word, min.freq = 2,
+ scale = c(3, 0.5),
+          max.words=100, random.order=FALSE, rot.per=0.2, 
+          colors=color_palette)
+```
+
+
+
+```{r}
+twt <- read.csv("twt.csv")
+twt <- as.tibble(twt)
+political <- character(0)
+political <- c("president","country","america","obama","vote","democrats","china","american","election","hillary","border","win","house","republican","military","national","campaign","republicans","clinton","biden","economy","usa","joe","party","poll","dems","wall","obamacare","russia","maga","tax","democrat","endorsement","debate","congress","law","washington","americans","bill","governor","government","run","illegal","iran","running","presidential","won","administration","mexico","senate","gop","speech","political","taxes","polls","immigration","amendment","court","federal","senator","nation","impeachment","office","fox","korea","votes","winning","borders","bush","isis","voting","candidate","rally","cruz","mike","economic","pelosi","nancy","congressman","war","healthcare","race","tariffs","police","politics","bernie","debt","iraq","supreme","unemployment","d.c","foreign","syria","winner","israel","politicians","voted","voters","ballots","mayor","laws","russian","international","nuclear","policy","whitehouse","elected","barackobama's","obama's","agenda","politician","potus","romney","chinese","ukraine","candidates","nations","legal","illegally","reagan","reform","presidency","sanders","coronavirus","kim","policies","voter","criminal","ebola","lawyer","putin","whistleblower","committee","liberal","ballot","dc","chief","americafirst","patriots","conservative","daca","troops","u.s.a","senators","nato","terrorist","runs","trump's","union","virus","amnesty","debates","dem","racist","terrorists","crimes","illegals","soldiers","america's","executive","benghazi","immigrants","navy","polling","bills","criminals","officers","negotiations","congressional","covid","lawyers","barack","politically","presidents","prez","sanctions","supporter","deficit","saudi","jong","nomination","flotus","elections","gdp","afghanistan","aid","reporters","representatives","rep","country's","impeach","medicare","sanctuary","anarchists","legislation","mexican","protesters","terrorism","elect","nafta","patriot","usdot","district","gov","governors","inflation","ukrainian","arabia","council","prison","regulations","endorsed","russians","army","memorial","rallies","vaccine","iranian","democratic","justices","nation's","constitution","campaigning","biden's","nominee","partisan","pols","vaccines","bipartisan","primaries","protest","homeland","lobbyists","tariff","absentee","china's","embassy","taxpayers","arab","antifa","boycott","delegates","humanitarian","caucus","conservatives","electoral","congresswoman","democracy","clinton's","consitutional","hillary's","cabinet","representative","govt","administrations","immigrant","president's","refugees","impeached","lobbyist","migration","inauguration","insurgents","terror","patriot","patriotism","patriotic")
+
+
+poli_freq <- numeric(0)
+poli_sum <- numeric(0)
+for(i in 1:nrow(twt)){
+  words <- twt[i,] %>%
+    unnest_tokens(word, text) %>%
+    anti_join(stop_words)
+  
+  poli_sum <- 0
+  for(j in 1:nrow(words)){
+    poli_sum <- sum(political %in% words$word[j]) + poli_sum
+  }
+  
+  poli_freq[i] <- poli_sum/nrow(words)
+}
+
+
+poli_df <- data.frame(poli_freq)
+summary(poli_df$poli_freq)
+
+poli_df[is.na(poli_freq),] <- 0
+
+write.csv(poli_df, "politicalfreq.csv")
+
+political <- read.csv("politicalfreq.csv")
+insulting <- read.csv("insultingprop.csv")
+
+newpolitical <- cbind("id" = twt$id, "polifreq" = political$poli_freq)
+
+write.csv(newpolitical, "newpolitical.csv")
+```
+
+```{r}
+insulting <- c("crooked", "witch", "corrupt", "sleepy", "phony", "weak", "dishonest", "pathetic", "puppet", "crookedhillary", "sleepyjoe", "dopey", "fat")
+
+insult_prop <- numeric(0)
+insult_sum <- numeric(0)
+for(i in 1:nrow(twt)){
+  words <- twt[i,] %>%
+    unnest_tokens(word, text) %>%
+    anti_join(stop_words)
+  
+  insult_sum <- 0
+  for(j in 1:nrow(words)){
+    insult_sum <- sum(insulting %in% words$word[j]) + insult_sum
+  }
+  
+  insult_prop[i] <- insult_sum/nrow(words)
+}
+
+insult_df <- data.frame(insult_prop)
+summary(insult_df$insult_prop)
+
+insult_df[is.na(insult_prop),] <- 0
+
+write.csv(insult_df, "insultingprop.csv")
+```
+
+
+```{r}
+twt_words <- twt %>%
+    unnest_tokens(word, text) %>%
+    anti_join(stop_words)
+
+count_word <- twt_words %>%
+   count(word, sort = TRUE)
+
+twt_words <- twt_words[-which(twt_words$word == "realdonaldtrump"),]
+
+color_number <- 20
+color_palette <- colorRampPalette(brewer.pal(8, "Paired"))(color_number)
+
+#wordcloud(words = twt_words$word, min.freq = 2,
+ scale = c(4, 0.5),
+          max.words=100, random.order=FALSE, rot.per=0.3, 
+          colors=c("lightskyblue3", "steelblue2", "royalblue1","royalblue3","blue3", "blue4"))
+
+
+
+
+wordcloud(words = twt_words$word, min.freq = 2,
+ scale = c(4, 0.5),
+          max.words=100, random.order=FALSE, rot.per=0.2, 
+          colors=color_palette)
+```
+
+```{r}
+twt.2 <- numeric(0)
+twt.2 <- Corpus(VectorSource(twt$text), readerControl = list(language = "lat"))
+twt.2 <- clean.corpus.dict(twt.2)
+#low.1 <- clean.corpus.df(low.1)
+text_help_twt_2 <- data.frame(text = as.character(twt.2), stringsAsFactors = FALSE)
+help.corpus.twt.2 <- corpus(text_help_twt_2)
+dfm.twt.2 <- dfm(help.corpus.twt.2, tolower = TRUE, remove_punct = TRUE, 
+                 remove_numbers = TRUE, remove = c("a", stopwords(source = "smart"), "realdonaldtrump"))
+
+set.seed(123)
+low_fcm_twt <- fcm(dfm.twt.2)
+feattwt <- names(topfeatures(low_fcm_twt, 30))
+low_fcm_twt <- fcm_select(low_fcm_twt, feattwt)
+
+
+sizetwt <- log(colSums(dfm_select(low_fcm_twt, feattwt)))
+
+textplot_network(low_fcm_twt, min_freq = 0.80, vertex_size = sizetwt / min(sizetwt) * 3 , 
+                 vertex_labelsize = sizetwt / min(sizetwt) * 3.5)
+```
+
+```{r}
+library(ggplot2)
+summary(political$poli_freq)
+
+hist(political$poli_freq, freq = TRUE, col = "steelblue", main = "Histogram of Political Word Proportion", xlab = "Political Word Proportion")
+
+```
+
+
+```{r}
+hist(insulting$insult_prop, freq = TRUE, col = "orange", main = "Histogram of Insulting Word Proportion", xlab = "Insulting Word Proportion")
+```
+
+
+```{r}
+political$favorites <- twt$favorites
+zero <- political[which(political$poli_freq == 0),]
+middle <- political[which(political$poli_freq > 0 & political$poli_freq <= 0.136),]
+middle2 <- political[which(political$poli_freq > 0.136 & political$poli_freq <= 0.25),]
+top <- political[which(political$poli_freq > 0.25),]
+
+
+barplot(c(median(zero$favorites), median(middle$favorites), median(middle2$favorites), median(top$favorites)), main = "Median Number of Favorites by Proportion of Political Words", names.arg = c("Q1", "Q2", "Q3", "Q4"), xlab = "Proportion of Political Words", ylab = "Median Number of Favorites", col = c("steelblue", "darkorange", "chartreuse4", "brown"), border = c("steelblue", "darkorange", "chartreuse4", "brown"))
+
+
+```
+
+
+```{r}
+quartiles <- quantile(insulting$insult_prop, probs = c(0, 0.25, 0.5, 0.75, 1))
+insulting$favorites <- twt$favorites
+zero <- insulting[which(insulting$insult_prop == 0),]
+middle <- insulting[which(insulting$insult_prop > 0),]
+
+
+barplot(c(median(zero$favorites), median(middle$favorites)), main = "Median Number of Favorites by Proportion of Insulting Words", names.arg = c("0", "< 0"), xlab = "Proportion of Insulting Words", ylab = "Median Number of Favorites", col = c("steelblue", "darkorange"), border = c("steelblue", "darkorange"))
+```
+
